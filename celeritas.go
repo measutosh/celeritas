@@ -3,10 +3,13 @@ package celeritas
 import (
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"strconv"
+	"time"
 
 	"github.com/joho/godotenv"
+	"github.com/go-chi/chi/v5"
 )
 
 const version = "1.0.0"
@@ -18,16 +21,17 @@ type Celeritas struct {
 	ErrorLog *log.Logger
 	InfoLog  *log.Logger
 	RootPath string
+	// to access all the routes in app
+	Routes *chi.Mux
 	// config won't be exported because the users shouldn't have access to the configs
-	config   Config
+	config Config
 }
 
 // config of the package celeritas
 type Config struct {
-	port string 
+	port     string
 	renderer string
 }
-
 
 func (c *Celeritas) New(rootPath string) error {
 	pathConfig := initPaths{
@@ -62,9 +66,12 @@ func (c *Celeritas) New(rootPath string) error {
 	c.Debug, _ = strconv.ParseBool(os.Getenv("DEBUG"))
 	c.RootPath = rootPath
 
+	// routes() is not of the right type, so *chi.Mux is tagged to it
+	c.Routes = c.routes().(*chi.Mux)
+
 	// configs
 	c.config = Config{
-		port: os.Getenv("PORT"),
+		port:     os.Getenv("PORT"),
 		renderer: os.Getenv("RENDERER"),
 	}
 	return nil
@@ -80,6 +87,22 @@ func (c *Celeritas) Init(p initPaths) error {
 		}
 	}
 	return nil
+}
+
+// ListenAndServe will start the web server
+func (c *Celeritas) ListenAndServe() {
+	srv := &http.Server{
+		Addr:         fmt.Sprintf(":%s", os.Getenv("PORT")),
+		ErrorLog:     c.ErrorLog,
+		Handler:      c.routes(),
+		IdleTimeout:  30 * time.Second,
+		ReadTimeout:  30 * time.Second,
+		WriteTimeout: 600 * time.Second,
+	}
+
+	c.InfoLog.Printf("Listening on port %s", os.Getenv("PORT"))
+	err := srv.ListenAndServe()
+	c.ErrorLog.Fatal(err)
 }
 
 func (c *Celeritas) checkDotEnv(path string) error {
