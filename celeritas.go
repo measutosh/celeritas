@@ -18,7 +18,16 @@ type Celeritas struct {
 	ErrorLog *log.Logger
 	InfoLog  *log.Logger
 	RootPath string
+	// config won't be exported because the users shouldn't have access to the configs
+	config   Config
 }
+
+// config of the package celeritas
+type Config struct {
+	port string 
+	renderer string
+}
+
 
 func (c *Celeritas) New(rootPath string) error {
 	pathConfig := initPaths{
@@ -51,7 +60,13 @@ func (c *Celeritas) New(rootPath string) error {
 	// everything that comes from env file is a string
 	// the string is being converted to bool ignoring the error
 	c.Debug, _ = strconv.ParseBool(os.Getenv("DEBUG"))
+	c.RootPath = rootPath
 
+	// configs
+	c.config = Config{
+		port: os.Getenv("PORT"),
+		renderer: os.Getenv("RENDERER"),
+	}
 	return nil
 }
 
