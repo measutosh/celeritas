@@ -8,12 +8,15 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/joho/godotenv"
 	"github.com/go-chi/chi/v5"
+	"github.com/joho/godotenv"
+	"github.com/measutosh/celeritas/render"
 )
 
 const version = "1.0.0"
 
+// Celeritas is the overall type for the Celeritas package. Members that are exported in this type
+// are available to any application that uses it.
 type Celeritas struct {
 	AppName  string
 	Debug    bool
@@ -21,18 +24,18 @@ type Celeritas struct {
 	ErrorLog *log.Logger
 	InfoLog  *log.Logger
 	RootPath string
-	// to access all the routes in app
-	Routes *chi.Mux
-	// config won't be exported because the users shouldn't have access to the configs
-	config Config
+	Routes   *chi.Mux
+	Render   *render.Render
+	config   config
 }
 
-// config of the package celeritas
-type Config struct {
+type config struct {
 	port     string
 	renderer string
 }
 
+// New reads the .env file, creates our application config, populates the Celeritas type with settings
+// based on .env values, and creates necessary folders and files if they don't exist
 func (c *Celeritas) New(rootPath string) error {
 	pathConfig := initPaths{
 		rootPath:    rootPath,
@@ -44,39 +47,37 @@ func (c *Celeritas) New(rootPath string) error {
 		return err
 	}
 
-	// verify existence of .env file
 	err = c.checkDotEnv(rootPath)
 	if err != nil {
 		return err
 	}
 
-	// if present then read .env
+	// read .env
 	err = godotenv.Load(rootPath + "/.env")
 	if err != nil {
 		return err
 	}
 
-	// logger
+	// create loggers
 	infoLog, errorLog := c.startLoggers()
 	c.InfoLog = infoLog
 	c.ErrorLog = errorLog
-	c.Version = version
-	// everything that comes from env file is a string
-	// the string is being converted to bool ignoring the error
 	c.Debug, _ = strconv.ParseBool(os.Getenv("DEBUG"))
+	c.Version = version
 	c.RootPath = rootPath
-
-	// routes() is not of the right type, so *chi.Mux is tagged to it
 	c.Routes = c.routes().(*chi.Mux)
 
-	// configs
-	c.config = Config{
+	c.config = config{
 		port:     os.Getenv("PORT"),
 		renderer: os.Getenv("RENDERER"),
 	}
+
+	c.createRenderer()
+
 	return nil
 }
 
+// Init creates necessary folders for our Celeritas application
 func (c *Celeritas) Init(p initPaths) error {
 	root := p.rootPath
 	for _, path := range p.folderNames {
@@ -89,12 +90,12 @@ func (c *Celeritas) Init(p initPaths) error {
 	return nil
 }
 
-// ListenAndServe will start the web server
+// ListenAndServe starts the web server
 func (c *Celeritas) ListenAndServe() {
 	srv := &http.Server{
 		Addr:         fmt.Sprintf(":%s", os.Getenv("PORT")),
 		ErrorLog:     c.ErrorLog,
-		Handler:      c.routes(),
+		Handler:      c.Routes,
 		IdleTimeout:  30 * time.Second,
 		ReadTimeout:  30 * time.Second,
 		WriteTimeout: 600 * time.Second,
@@ -117,8 +118,17 @@ func (c *Celeritas) startLoggers() (*log.Logger, *log.Logger) {
 	var infoLog *log.Logger
 	var errorLog *log.Logger
 
-	infoLog = log.New(os.Stdout, "[INFO]\t", log.Ldate|log.Ltime)
-	errorLog = log.New(os.Stdout, "[ERROR]\t", log.Ldate|log.Ltime|log.Lshortfile)
+	infoLog = log.New(os.Stdout, "INFO\t", log.Ldate|log.Ltime)
+	errorLog = log.New(os.Stdout, "ERROR\t", log.Ldate|log.Ltime|log.Lshortfile)
 
 	return infoLog, errorLog
+}
+
+func (c *Celeritas) createRenderer() {
+	myRenderer := render.Render{
+		Renderer: c.config.renderer,
+		RootPath: c.RootPath,
+		Port:     c.config.port,
+	}
+	c.Render = &myRenderer
 }
