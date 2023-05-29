@@ -5,6 +5,8 @@ import (
 	"html/template"
 	"net/http"
 	"strings"
+
+	"github.com/CloudyKit/jet/v6"
 )
 
 type Render struct {
@@ -13,6 +15,7 @@ type Render struct {
 	Secure     bool
 	Port       string
 	ServerName string
+	JetViews   *jet.Set
 }
 
 type TemplateData struct {
@@ -32,7 +35,7 @@ func (c *Render) Page(w http.ResponseWriter, r *http.Request, view string, varia
 	case "go":
 		return c.GoPage(w, r, view, data)
 	case "jet":
-
+		return c.JetPage()
 	}
 	return nil
 }
@@ -54,4 +57,13 @@ func (c *Render) GoPage(w http.ResponseWriter, r *http.Request, view string, dat
 	}
 
 	return nil
+}
+
+// function to handle jet support
+
+func (c *Render) JetPage(w http.ResponseWriter, r *http.Request, templateName string, variables, datavars  interface{}) {
+	var vars jet.VarMap
+	if variables == nil {
+		vars = make(jet.YarMap)
+	} 
 }
